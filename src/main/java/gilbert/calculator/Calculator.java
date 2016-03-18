@@ -2,6 +2,21 @@ package gilbert.calculator;
 
 import java.text.ParseException;
 
+/**
+ * Evaluates an expression provided on the command line. 
+ * An expression can be an integer value, or an operation. Supported operations are
+ * add, sub, mult, div, each of which takes two expressions as arguments, in a prefix notation.
+ * <p>
+ * Example: add(sub(213,54),45)
+ * <p>
+ * There is also an assignment operation which defines a variable, assigns it a value,
+ * then uses the value. The value of the assignment operation is that the last expression.
+ * <p>
+ * Example: let(aVar,sub(134,58),div(aVar,3))
+ * <p>
+ * A logging level can also be specified on the command line (either after or before the expression)
+ * as -ERROR, -INFO or -DEBUG. Logs go to standard output.
+ */
 public class Calculator
 {
   public static void main(String[] args)
@@ -57,6 +72,7 @@ public class Calculator
     }
     catch (ArithmeticException a)
     {
+       // Division by zero, overflow, etc...
        Logger.error(a.getMessage());
     }
   }
