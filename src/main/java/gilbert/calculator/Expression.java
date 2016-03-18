@@ -56,11 +56,11 @@ public abstract class Expression
   /**
    * Parses and recursively builds an expression.
    * @param  s  an expression
-   * @param  context  the parent expression, if any (null for top level expression)
+   * @param  context  the enclosing assignment expression, if any (null for top level expression).
    * @return  parsed expression of the appropriate subclass, ready to be evaluated
    */
 
-  private static Expression build(String s, ContextualExpression context) throws ParseException
+  private static Expression build(String s, Assignment context) throws ParseException
   {
      int intValue;
 
@@ -105,8 +105,7 @@ public abstract class Expression
               String argumentString = operatorMatcher.group(2);  // Note that parentheses have been stripped
               int commaPos;
               boolean processingAssignment = operator.equals("let");
-              Assignment assignment = null;
-              ContextualExpression newContext = context;  // Initialize now, in case this is not a let operator
+              Assignment newContext = context;  // Initialize now, in case this is not a let operator
               Logger.debug("Operator is " + operator + " with arguments " + argumentString);
 
               // The assignment operator has an extra argument (the variable being defined)
@@ -130,10 +129,10 @@ public abstract class Expression
                  Logger.debug("Variable name is " + varName);
 
                  // This is tricky. We must instantiate the Assignment now, even though
-                 // it is not yet complete (we have not parsed all its arguments.
+                 // it is not yet complete (we have not parsed all its arguments).
                  // This is necessary in order to provide a context for the parsing of the
                  // third argument.
-                 newContext = assignment = new Assignment(varName, context);
+                 newContext = new Assignment(varName, context);
               }
 
               // Now we are looking for two expressions, separated by a comma.
@@ -155,13 +154,13 @@ public abstract class Expression
 
               // Now update the context, because it will be needed for the second expression
               if (processingAssignment)
-                 assignment.setVariable(exp1);
+                 newContext.setVariable(exp1);
 
               exp2 = build(arg2, newContext);
 
               if (processingAssignment)
               {
-                 assignment.setValue(exp2);
+                 newContext.setValue(exp2);
                  return newContext;
               }
 
@@ -259,53 +258,15 @@ class Variable extends Value
  */
 abstract class ContextualExpression extends Expression
 {
-   protected final ContextualExpression parent;
+   protected final Assignment parent;
 
   /**
-   * The only significant aspect of a contextual expression is its enclosing expression (if any).
-   * This parent expression may not define any variables (it may be an arithmetic operation),
-   * but it may in turn be enclosed within another operation. The context is recursive in concept.
+   * The only significant aspect of a contextual expression is its enclosing Assignment expression (if any).
    * @param  context  enclosing expression
    */
-   public ContextualExpression(ContextualExpression context)
+   public ContextualExpression(Assignment context)
    {
       parent = context;
-   }
-
-
-  /**
-   * Looks for a locally defined variable.
-   * This default implementation is provided for the benefit of Arithmetic
-   * @param  name  variable name
-   * @return  corresponding Variable
-   */
-   protected Variable getVariable(String name)
-   {
-      return null;
-   }
-
-
-
-  /**
-   * Looks for a variable within this expression's context hierarchy.
-   * This default implementation is provided for the benefit of Arithmetic
-   * @param  name  variable name
-   * @return  corresponding Variable (will never be null: exception thrown if not found)
-   */
-   public Variable findVariable(String name) throws ParseException
-   {
-      // First, check whether the variable is defined here.
-      Variable v = getVariable(name);
-
-      Logger.debug("Looking for variable " + name);
-
-      // If not defined here, and if this expression has a parent, look recursively
-      if (v == null && parent != null)
-        v = parent.findVariable(name);
-
-      if (v != null)
-        return v;
-      else throw new ParseException("Undefined variable: " + name, 0);
    }
 }
 
@@ -324,7 +285,7 @@ abstract class Arithmetic extends ContextualExpression
    * @param  e2  second operand
    * @param  e3  enclosing expression (if any)
    */
-   public Arithmetic(Expression e1, Expression e2, ContextualExpression e3)
+   public Arithmetic(Expression e1, Expression e2, Assignment e3)
    {
       super(e3);
       first = e1; 
@@ -334,7 +295,7 @@ abstract class Arithmetic extends ContextualExpression
 
 class Addition extends Arithmetic
 {
-   public Addition(Expression e1, Expression e2, ContextualExpression e3)
+   public Addition(Expression e1, Expression e2, Assignment e3)
    { 
       super(e1,e2,e3);
       Logger.debug("Addition constructor");
@@ -349,7 +310,7 @@ class Addition extends Arithmetic
 
 class Subtraction extends Arithmetic
 {
-   public Subtraction(Expression e1, Expression e2, ContextualExpression e3)
+   public Subtraction(Expression e1, Expression e2, Assignment e3)
    { 
       super(e1,e2,e3);
    }
@@ -363,7 +324,7 @@ class Subtraction extends Arithmetic
 
 class Multiplication extends Arithmetic
 {
-   public Multiplication(Expression e1, Expression e2, ContextualExpression e3)
+   public Multiplication(Expression e1, Expression e2, Assignment e3)
    { 
       super(e1,e2,e3);
    }
@@ -377,7 +338,7 @@ class Multiplication extends Arithmetic
 
 class Division extends Arithmetic
 {
-   public Division(Expression e1, Expression e2, ContextualExpression e3)
+   public Division(Expression e1, Expression e2, Assignment e3)
    { 
       super(e1,e2,e3);
    }
@@ -406,7 +367,7 @@ class Assignment extends ContextualExpression
    * @param  name  newly defined variable identifier
    * @param  parent  enclosing expression (if any)
    */
-   public Assignment(String name, ContextualExpression parent)
+   public Assignment(String name, Assignment parent)
    {
       super(parent);
       myVarName = name;
@@ -442,6 +403,29 @@ class Assignment extends ContextualExpression
    void setValue(Expression e)
    {
       second = e;
+   }
+
+
+
+  /**
+   * Looks for a variable within this expression's context hierarchy.
+   * @param  name  variable name
+   * @return  corresponding Variable (will never be null: exception thrown if not found)
+   */
+   public Variable findVariable(String name) throws ParseException
+   {
+      // First, check whether the variable is defined here.
+      Variable v = getVariable(name);
+
+      Logger.debug("Looking for variable " + name);
+
+      // If not defined here, and if this expression has a parent, look recursively
+      if (v == null && parent != null)
+        v = parent.findVariable(name);
+
+      if (v != null)
+        return v;
+      else throw new ParseException("Undefined variable: " + name, 0);
    }
 
    public int eval()
